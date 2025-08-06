@@ -10,6 +10,8 @@ import asyncio
 import json
 import os
 
+TOKEN = os.getenv("DISCORD_TOKEN")
+
 intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
@@ -495,5 +497,6 @@ async def xp(ctx):
 # Bot Run
 # ============================
 
-bot.run('THE_TOKEN')
+bot.run('DISCORD_TOKEN')
+
 >>>>>>> c3d775aef0b2a57913a2fb60866653c1103bd221
