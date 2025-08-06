@@ -43,7 +43,27 @@ role_progression = {
 }
 
 # ============================
-# Verification System
+# Persistent Verify View
+# ============================
+
+class VerifyView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="✅ Verify | *Verifikasi*", style=discord.ButtonStyle.success, custom_id="verify_button")
+    async def verify_button_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        role = discord.utils.get(interaction.guild.roles, name="Adventurer")
+        if role:
+            await interaction.user.add_roles(role)
+            await interaction.response.send_message("✅ Kamu telah diverifikasi!\n*You have been verified!*", ephemeral=True)
+
+@bot.event
+async def on_ready():
+    bot.add_view(VerifyView())
+    print(f"{bot.user} is ready.")
+
+# ============================
+# Verification Command
 # ============================
 
 @bot.command()
@@ -53,23 +73,19 @@ async def verify(ctx):
         description="Klik tombol di bawah untuk mendapatkan akses penuh ke server.\n\n*Click the button below to verify yourself.*",
         color=discord.Color.green()
     )
-    view = View()
-
-    async def verify_callback(interaction):
-        role = discord.utils.get(ctx.guild.roles, name="Adventurer")
-        if role:
-            await interaction.user.add_roles(role)
-            await interaction.response.send_message("✅ Kamu telah diverifikasi!\n*You have been verified!*", ephemeral=True)
-
-    button = Button(label="✅ Verify | *Verifikasi*", style=discord.ButtonStyle.success)
-    button.callback = verify_callback
-    view.add_item(button)
-
-    await ctx.send(embed=embed, view=view)
+    await ctx.send(embed=embed, view=VerifyView())
 
 # ============================
-# Reaction Role System
+# Reaction Role System (Persistent)
 # ============================
+
+reaction_roles = {
+    "💀": "Phantom",
+    "🧛🏻‍♀️": "Whisperer",
+    "🦉": "Lurker",
+    "🦇": "Dreamwalker",
+    "🪽": "Angel"
+}
 
 @bot.command()
 async def roles(ctx):
@@ -100,33 +116,36 @@ async def roles(ctx):
         color=discord.Color.dark_purple()
     )
     embed.set_footer(text="⚠️ You can only have ONE main role. You cannot choose another role, when you have chosen a role, please choose wisely.")
-
     message = await ctx.send(embed=embed)
-
-    emojis = {
-        "💀": "Phantom",
-        "🧛🏻‍♀️": "Whisperer",
-        "🦉": "Lurker",
-        "🦇": "Dreamwalker",
-        "🪽": "Angel"
-    }
-
-    for emoji in emojis:
+    for emoji in reaction_roles:
         await message.add_reaction(emoji)
 
-    def check(reaction, user):
-        return str(reaction.emoji) in emojis and reaction.message.id == message.id and not user.bot
+@bot.event
+async def on_raw_reaction_add(payload):
+    if payload.member is None or payload.member.bot:
+        return
 
-    while True:
-        try:
-            reaction, user = await bot.wait_for("reaction_add", timeout=300.0, check=check)
-            role_name = emojis[str(reaction.emoji)]
-            role = discord.utils.get(ctx.guild.roles, name=role_name)
-            if role:
-                await user.add_roles(role)
-                await user.send(f"✅ Kamu telah memilih peran: **{role.name}**\n*You have chosen the role: **{role.name}***")
-        except asyncio.TimeoutError:
-            break
+    guild = bot.get_guild(payload.guild_id)
+    role_name = reaction_roles.get(str(payload.emoji))
+    if not role_name:
+        return
+
+    role = discord.utils.get(guild.roles, name=role_name)
+    if not role:
+        return
+
+    member = payload.member
+
+    # Remove existing role from same category
+    existing_roles = [r for r in member.roles if r.name in sum(role_progression.values(), [])]
+    for r in existing_roles:
+        await member.remove_roles(r)
+
+    await member.add_roles(role)
+    try:
+        await member.send(f"✅ Kamu telah memilih peran: **{role.name}**\n*You have chosen the role: **{role.name}***")
+    except:
+        pass
 
 # ============================
 # Leveling System
